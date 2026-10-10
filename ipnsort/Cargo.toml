@@ -18,7 +18,7 @@ test = false
 # ] }
 
 [dev-dependencies]
-sort_test_tools = { path = "../sort_test_tools", default-features = false }
+sort_test_tools = { path = "../sort_test_tools", default-features = false, features = ["test-harness"] }
 
 [features]
 default = ["large_test_sizes"]

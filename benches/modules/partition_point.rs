@@ -15,7 +15,7 @@ fn bench_impl<T: Ord + std::fmt::Debug, P: PartitionPoint>(
     transform_name: &str,
     transform: &fn(Vec<i32>) -> Vec<T>,
     pattern_name: &str,
-    pattern_provider: &fn(usize) -> Vec<i32>,
+    pattern_provider: &dyn Fn(usize) -> Vec<i32>,
     _partition_point_impl: P,
 ) {
     let bench_name = P::name();
@@ -57,7 +57,7 @@ pub fn bench<T: Ord + std::fmt::Debug>(
     transform_name: &str,
     transform: &fn(Vec<i32>) -> Vec<T>,
     pattern_name: &str,
-    pattern_provider: &fn(usize) -> Vec<i32>,
+    pattern_provider: &dyn Fn(usize) -> Vec<i32>,
 ) {
     if pattern_name != "ascending" {
         // We need sorted inputs.

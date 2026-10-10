@@ -86,7 +86,7 @@ pub fn bench<T: Ord + std::fmt::Debug>(
     transform_name: &str,
     transform: &fn(Vec<i32>) -> Vec<T>,
     pattern_name: &str,
-    pattern_provider: &fn(usize) -> Vec<i32>,
+    pattern_provider: &dyn Fn(usize) -> Vec<i32>,
 ) {
     macro_rules! bench_inst {
         ($sort_impl_path:path) => {{

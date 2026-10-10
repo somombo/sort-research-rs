@@ -3,13 +3,24 @@ name = "sort_test_tools"
 version = "0.1.0"
 edition = "2021"
 authors = ["Lukas Bergdoll <lukas.bergdoll@gmail.com>"]
+description = "Sorting benchmark input generators and optional sort correctness tests"
+license = "Apache-2.0"
+repository = "https://github.com/somombo/sort-research-rs"
 
 [dependencies]
-rand = "0.8"
-zipf = "7.0.0"
+rand = "=0.8.5"
+zipf = "=7.0.0"
+
+[[test]]
+name = "main"
+path = "tests/main.rs"
+required-features = ["test-harness"]
 
 [features]
 default = ["large_test_sizes"]
+
+# Enable the nightly sort correctness harness and FFI benchmark types.
+test-harness = []
 
 # Enable the largest test sizes, usually fine even for debug builds. May take a couple seconds.
 large_test_sizes = []

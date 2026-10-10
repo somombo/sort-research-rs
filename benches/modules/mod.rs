@@ -17,7 +17,7 @@ pub fn bench_len_type_pattern_combo<T: Ord + std::fmt::Debug>(
     transform_name: &str,
     transform: &fn(Vec<i32>) -> Vec<T>,
     pattern_name: &str,
-    pattern_provider: &fn(usize) -> Vec<i32>,
+    pattern_provider: &dyn Fn(usize) -> Vec<i32>,
 ) {
     if let Ok(env_val) = env::var("BENCH_OTHER") {
         match env_val.as_str() {

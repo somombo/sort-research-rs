@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use rand::prelude::*;
 
-use zipf::ZipfDistribution;
+use crate::generators;
 
 /// Provides a set of patterns useful for testing and benchmarking sorting algorithms.
 /// Currently limited to i32 values.
@@ -33,9 +33,7 @@ where
     CACHE.copy_cached_or_gen(len, range, |len, seed, range| {
         let mut rng: StdRng = rand::SeedableRng::seed_from_u64(seed);
 
-        // Abstracting over ranges in Rust :(
-        let dist: rand::distributions::Uniform<i32> = range.into();
-        (0..len).map(|_| dist.sample(&mut rng)).collect()
+        generators::random_uniform(len, range, &mut rng)
     })
 }
 
@@ -47,9 +45,7 @@ pub fn random_zipf(len: usize, exponent: f64) -> Vec<i32> {
     CACHE.copy_cached_or_gen(len, exponent.to_bits(), |len, seed, exponent_bits| {
         let mut rng: StdRng = rand::SeedableRng::seed_from_u64(seed);
 
-        // Abstracting over ranges in Rust :(
-        let dist = ZipfDistribution::new(len, f64::from_bits(exponent_bits)).unwrap();
-        (0..len).map(|_| dist.sample(&mut rng) as i32).collect()
+        generators::random_zipf(len, f64::from_bits(exponent_bits), &mut rng)
     })
 }
 
@@ -71,9 +67,7 @@ pub fn random_sorted(len: usize, sorted_percent: f64) -> Vec<i32> {
         // and part of the overall distribution.
         let sorted_percent = f64::from_bits(spb);
         let mut v = random_vec(len);
-        let sorted_len = ((len as f64) * (sorted_percent / 100.0)).round() as usize;
-
-        v[0..sorted_len].sort_unstable();
+        generators::sort_prefix(&mut v, sorted_percent);
 
         v
     })
@@ -97,10 +91,7 @@ pub fn random_merge(len: usize, first_run_percent: f64) -> Vec<i32> {
         // values and part of the overall distribution.
         let first_run_percent = f64::from_bits(frp);
         let mut v = random_vec(len);
-        let first_run_len = ((len as f64) * (first_run_percent / 100.0)).round() as usize;
-
-        v[0..first_run_len].sort_unstable();
-        v[first_run_len..].sort_unstable();
+        generators::sort_runs(&mut v, first_run_percent);
 
         v
     })
@@ -120,7 +111,7 @@ pub fn all_equal(len: usize) -> Vec<i32> {
     // ......
     // ::::::
 
-    (0..len).map(|_| 66).collect::<Vec<_>>()
+    generators::all_equal(len)
 }
 
 pub fn ascending(len: usize) -> Vec<i32> {
@@ -128,7 +119,7 @@ pub fn ascending(len: usize) -> Vec<i32> {
     //   .:::
     // .:::::
 
-    (0..len as i32).collect::<Vec<_>>()
+    generators::ascending(len)
 }
 
 pub fn descending(len: usize) -> Vec<i32> {
@@ -136,7 +127,7 @@ pub fn descending(len: usize) -> Vec<i32> {
     // :::.
     // :::::.
 
-    (0..len as i32).rev().collect::<Vec<_>>()
+    generators::descending(len)
 }
 
 pub fn saw_ascending(len: usize, saw_count: usize) -> Vec<i32> {
@@ -151,11 +142,7 @@ pub fn saw_ascending(len: usize, saw_count: usize) -> Vec<i32> {
 
     CACHE.copy_cached_or_gen(len, saw_count, |len, _seed, saw_count| {
         let mut vals = random_vec(len);
-        let chunks_size = len / saw_count.max(1);
-
-        for chunk in vals.chunks_mut(chunks_size) {
-            chunk.sort_unstable();
-        }
+        generators::sort_saws(&mut vals, saw_count, 0);
 
         vals
     })
@@ -173,11 +160,7 @@ pub fn saw_descending(len: usize, saw_count: usize) -> Vec<i32> {
 
     CACHE.copy_cached_or_gen(len, saw_count, |len, _seed, saw_count| {
         let mut vals = random_vec(len);
-        let chunks_size = len / saw_count.max(1);
-
-        for chunk in vals.chunks_mut(chunks_size) {
-            chunk.sort_unstable_by_key(|&e| std::cmp::Reverse(e));
-        }
+        generators::sort_saws(&mut vals, saw_count, 1);
 
         vals
     })
@@ -198,15 +181,7 @@ pub fn saw_mixed(len: usize, saw_count: usize) -> Vec<i32> {
         let chunks_size = len / saw_count.max(1);
         let saw_directions = random_uniform((len / chunks_size) + 1, 0..=1);
 
-        for (i, chunk) in vals.chunks_mut(chunks_size).enumerate() {
-            if saw_directions[i] == 0 {
-                chunk.sort_unstable();
-            } else if saw_directions[i] == 1 {
-                chunk.sort_unstable_by_key(|&e| std::cmp::Reverse(e));
-            } else {
-                unreachable!();
-            }
-        }
+        generators::sort_mixed_saws(&mut vals, chunks_size, &saw_directions);
 
         vals
     })
@@ -239,13 +214,7 @@ pub fn saw_mixed_range(len: usize, range: std::ops::Range<usize>) -> Vec<i32> {
             let chunk_end = std::cmp::min(l + chunk_size, len);
             let chunk = &mut vals[l..chunk_end];
 
-            if saw_directions[i] == 0 {
-                chunk.sort_unstable();
-            } else if saw_directions[i] == 1 {
-                chunk.sort_unstable_by_key(|&e| std::cmp::Reverse(e));
-            } else {
-                unreachable!();
-            }
+            generators::sort_chunk(chunk, saw_directions[i]);
 
             i += 1;
             l += chunk_size;
@@ -264,11 +233,7 @@ pub fn pipe_organ(len: usize) -> Vec<i32> {
     CACHE.copy_cached_or_gen(len, |len, _seed| {
         let mut vals = random_vec(len);
 
-        let first_half = &mut vals[0..(len / 2)];
-        first_half.sort_unstable();
-
-        let second_half = &mut vals[(len / 2)..len];
-        second_half.sort_unstable_by_key(|&e| std::cmp::Reverse(e));
+        generators::sort_pipe_organ(&mut vals);
 
         vals
     })
@@ -464,6 +429,6 @@ fn random_vec(len: usize) -> Vec<i32> {
 
     CACHE.copy_cached_or_gen(len, |len, seed| {
         let mut rng: StdRng = rand::SeedableRng::seed_from_u64(seed);
-        (0..len).map(|_| rng.gen::<i32>()).collect()
+        generators::random(len, &mut rng)
     })
 }

@@ -22,7 +22,7 @@ fn bench_partition_impl<T: Ord + std::fmt::Debug, P: Partition>(
     transform_name: &str,
     transform: &fn(Vec<i32>) -> Vec<T>,
     pattern_name: &str,
-    pattern_provider: &fn(usize) -> Vec<i32>,
+    pattern_provider: &dyn Fn(usize) -> Vec<i32>,
     _partition_impl: P,
 ) {
     // Pin the benchmark to the same core to improve repeatability. Doing it this way allows
@@ -264,7 +264,7 @@ pub fn bench<T: Ord + std::fmt::Debug>(
     transform_name: &str,
     transform: &fn(Vec<i32>) -> Vec<T>,
     pattern_name: &str,
-    pattern_provider: &fn(usize) -> Vec<i32>,
+    pattern_provider: &dyn Fn(usize) -> Vec<i32>,
 ) {
     // We are not really interested in very small input. These are handled by some other logic.
     if test_len < 30 {

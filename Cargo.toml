@@ -28,7 +28,7 @@ crumsort = { version = "0.1", optional = true }
 tiny_sort = { version = "1.0", optional = true }
 introsort = { version = "0.6", default-features = false, optional = true }
 afsort = { version = "0.3", default-features = false, optional = true }
-sort_test_tools = { path = "sort_test_tools", default-features = false }
+sort_test_tools = { path = "sort_test_tools", default-features = false, features = ["test-harness"] }
 ipnsort = { path = "ipnsort", default-features = false }
 
 [dev-dependencies]
