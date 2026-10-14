@@ -3,7 +3,7 @@ use sort_test_tools::{generate, GenerateError, DEFAULT_PATTERNS, PATTERNS};
 
 #[test]
 fn catalog_length_and_replay_do_not_depend_on_call_history() {
-    assert_eq!(PATTERNS.len(), 83);
+    assert_eq!(PATTERNS.len(), 85);
     for (index, &pattern) in PATTERNS.iter().enumerate() {
         assert!(!PATTERNS[..index].contains(&pattern));
         for len in [0, 1, 2, 3, 17, 100, 101, 257, 2_048] {
@@ -263,4 +263,41 @@ fn default_patterns_are_the_original_benchmark_selection() {
         ]
     );
     assert_eq!(DEFAULT_PATTERNS, &PATTERNS[..DEFAULT_PATTERNS.len()]);
+}
+
+#[test]
+fn mostly_sorted_patterns_match_upstream_swaps() {
+    // gen_mostly_ascending and gen_mostly_descending in rust-lang/rust
+    // library/alloctests/benches/slice.rs.
+    for seed in [0, 42, u64::MAX] {
+        for len in [1_usize, 2, 3, 4, 17, 100, 257, 2_048] {
+            for pattern in ["mostly_ascending", "mostly_descending"] {
+                let mut rng = StdRng::seed_from_u64(seed);
+                let mut reference = rng.clone();
+                let mut expected: Vec<i32> = (0..len as i32).collect();
+                if pattern == "mostly_descending" {
+                    expected.reverse();
+                }
+                let swaps = (0..).take_while(|x| x * x <= len).count();
+                assert_eq!(swaps, (len as f64).sqrt().floor() as usize + 1);
+                for _ in 0..swaps {
+                    let x = reference.next_u32() as usize % len;
+                    let y = reference.next_u32() as usize % len;
+                    expected.swap(x, y);
+                }
+
+                let actual = generate(pattern, len, &mut rng).unwrap();
+                assert_eq!(actual, expected, "{pattern}/{len}/{seed}");
+                assert_eq!(
+                    rng.next_u64(),
+                    reference.next_u64(),
+                    "{pattern}/{len}/{seed} state"
+                );
+
+                let mut sorted = actual;
+                sorted.sort_unstable();
+                assert!(sorted.iter().copied().eq(0..len as i32));
+            }
+        }
+    }
 }

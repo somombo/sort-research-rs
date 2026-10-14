@@ -24,7 +24,7 @@ variables. See for example benches/bench.rs.
 ## Benchmark input library
 
 The nested [sort_test_tools](sort_test_tools/README.md) crate exposes
-`generate(pattern, len, &mut rng)` and `PATTERNS` for all 83 benchmark patterns on
+`generate(pattern, len, &mut rng)` and `PATTERNS` for all 85 benchmark patterns on
 stable Rust. External projects can depend on that crate by path or by the fork's
 Git URL, without copying generator sources. Its optional `test-harness` feature
 provides the existing nightly correctness tests and FFI types.

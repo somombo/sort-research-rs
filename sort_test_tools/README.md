@@ -18,7 +18,7 @@ assert_eq!(
     generate("unknown", 100, &mut rng),
     Err(GenerateError::UnknownPattern("unknown".into()))
 );
-assert_eq!(PATTERNS.len(), 83);
+assert_eq!(PATTERNS.len(), 85);
 ```
 
 Successful calls produce fresh owned vectors. Sampling and shuffling advance the
@@ -33,12 +33,16 @@ lengths exceeding `i32::MAX` return a `GenerateError` before consuming randomnes
 so the caller can keep using the RNG.
 
 `PATTERNS` is the catalog `benches/bench.rs` iterates: its seven default
-patterns, also exported as `DEFAULT_PATTERNS`, followed by 76 extra patterns.
+patterns, also exported as `DEFAULT_PATTERNS`, followed by 78 extra patterns.
 Original signed distributions, range endpoints, rounding, and structural
 formulas are preserved. The upstream `random_m95` name uses a 99% first run,
-matching `random_m99`. The last extra pattern, `all_equal`, is not part of the
-upstream benchmark: it repeats the value 66, like the legacy
-`patterns::all_equal`.
+matching `random_m99`. The last three extra patterns are not part of the
+original benchmark. `all_equal` repeats the value 66, like the legacy
+`patterns::all_equal`. `mostly_ascending` and `mostly_descending` follow
+`gen_mostly_ascending` and `gen_mostly_descending` from the rust-lang/rust slice
+sort benchmarks (`library/alloctests/benches/slice.rs`): `0..len` in order, then
+`isqrt(len) + 1` swaps of positions drawn as `u32 % len`, each swap taking two
+`next_u32` draws.
 
 Caller-owned RNG sequencing intentionally differs from the legacy harness for
 mixed saws and shuffled random mixtures. Replay requires equivalent starting RNG
@@ -100,5 +104,5 @@ cargo test --manifest-path sort_test_tools/Cargo.toml --locked --no-default-feat
 ```
 
 The fixtures retain 171 independently generated upstream hashes on Linux x86_64
-GNU. Behavior tests cover all 83 names, boundary lengths, mixtures, aliases,
+GNU. Behavior tests cover all 85 names, boundary lengths, mixtures, aliases,
 validation, replay, trait-object RNGs, and advancing RNG state.

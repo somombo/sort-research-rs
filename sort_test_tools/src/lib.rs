@@ -3,7 +3,7 @@
 //!
 //! [`generate`] accepts the caller's rand 0.8 RNG and produces an owned `Vec<i32>`,
 //! or a [`GenerateError`] for an unknown pattern or an oversized length.
-//! [`PATTERNS`] lists all 83 benchmark pattern names and [`DEFAULT_PATTERNS`] the
+//! [`PATTERNS`] lists all 85 benchmark pattern names and [`DEFAULT_PATTERNS`] the
 //! seven the benchmark runs by default. Sampling and shuffling use
 //! one advancing RNG, without consulting process seeds, caches, or environment
 //! variables. The generator interface builds on stable Rust.

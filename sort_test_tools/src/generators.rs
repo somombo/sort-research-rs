@@ -160,6 +160,42 @@ pub(crate) fn pipe_organ(len: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> 
     values
 }
 
+// Swaps `swap_count` random pairs, drawing each position as `u32 % len` like upstream.
+fn swap_random_pairs(values: &mut [i32], swap_count: usize, rng: &mut (impl Rng + ?Sized)) {
+    let len = values.len();
+    // An empty slice has no positions to draw, and `% len` would panic.
+    if len == 0 {
+        return;
+    }
+    for _ in 0..swap_count {
+        let x = rng.gen::<u32>() as usize % len;
+        let y = rng.gen::<u32>() as usize % len;
+        values.swap(x, y);
+    }
+}
+
+// Ports of gen_mostly_ascending and gen_mostly_descending from the rust-lang/rust slice sort
+// benchmarks (library/alloctests/benches/slice.rs), with the swap count as a parameter.
+pub(crate) fn gen_mostly_ascending(
+    len: usize,
+    swap_count: usize,
+    rng: &mut (impl Rng + ?Sized),
+) -> Vec<i32> {
+    let mut values = ascending(len);
+    swap_random_pairs(&mut values, swap_count, rng);
+    values
+}
+
+pub(crate) fn gen_mostly_descending(
+    len: usize,
+    swap_count: usize,
+    rng: &mut (impl Rng + ?Sized),
+) -> Vec<i32> {
+    let mut values = descending(len);
+    swap_random_pairs(&mut values, swap_count, rng);
+    values
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

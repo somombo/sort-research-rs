@@ -433,6 +433,15 @@ gen_sort_test_fns_with_default_patterns!(
             20..50
         )),
         (pipe_organ, patterns::pipe_organ),
+        // isqrt(len) + 1 swaps, the + 1 reproducing upstream's loop starting at 0.
+        (mostly_ascending, |len| patterns::mostly_ascending(
+            len,
+            len.isqrt() + 1
+        )),
+        (mostly_descending, |len| patterns::mostly_descending(
+            len,
+            len.isqrt() + 1
+        )),
     ]
 );
 
@@ -1164,6 +1173,8 @@ define_instantiate_sort_tests!(
     [miri_no, correct_i32_all_equal],
     [miri_no, correct_i32_saw_mixed_range],
     [miri_yes, correct_i32_pipe_organ],
+    [miri_no, correct_i32_mostly_ascending],
+    [miri_no, correct_i32_mostly_descending],
     [miri_yes, correct_u64_random],
     [miri_yes, correct_u64_random_z1],
     [miri_no, correct_u64_random_d2],

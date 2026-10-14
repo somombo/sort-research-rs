@@ -8,8 +8,9 @@ use rand::seq::SliceRandom;
 use rand::{Rng, RngCore};
 
 use crate::generators::{
-    all_equal, ascending, descending, pipe_organ, random, random_merge, random_sorted,
-    random_uniform, random_zipf, saw_ascending, saw_descending, saw_mixed,
+    all_equal, ascending, descending, gen_mostly_ascending, gen_mostly_descending, pipe_organ,
+    random, random_merge, random_sorted, random_uniform, random_zipf, saw_ascending,
+    saw_descending, saw_mixed,
 };
 use Values::{Constant, Random, Uniform, UniformInclusive};
 
@@ -109,6 +110,12 @@ const CATALOG: &[(&str, Recipe)] = &[
 
     // Not part of the original benchmark selection.
     ("all_equal", |len, _| all_equal(len)),
+
+    // From the rust-lang/rust slice sort benchmarks. Upstream's swap loop,
+    // `(0usize..).take_while(|x| x * x <= len)`, starts at 0 rather than 1, so it makes
+    // isqrt(len) + 1 swaps instead of isqrt(len). The + 1 reproduces that.
+    ("mostly_ascending", |len, rng| gen_mostly_ascending(len, len.isqrt() + 1, rng)),
+    ("mostly_descending", |len, rng| gen_mostly_descending(len, len.isqrt() + 1, rng)),
 ];
 
 /// Every benchmark pattern name, in original order, with later additions at the end.

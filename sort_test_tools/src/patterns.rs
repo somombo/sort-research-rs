@@ -130,6 +130,36 @@ pub fn descending(len: usize) -> Vec<i32> {
     generators::descending(len)
 }
 
+pub fn mostly_ascending(len: usize, swap_count: usize) -> Vec<i32> {
+    //     .:
+    //   .:.:
+    // .:::::
+    // swap_count random swaps.
+
+    if len == 0 {
+        return Vec::new();
+    }
+
+    // Not cached: a prefix of a longer input is not mostly ascending in the same way.
+    let mut rng: StdRng = rand::SeedableRng::seed_from_u64(random_init_seed());
+    generators::gen_mostly_ascending(len, swap_count, &mut rng)
+}
+
+pub fn mostly_descending(len: usize, swap_count: usize) -> Vec<i32> {
+    // :.
+    // :.:.
+    // :::::.
+    // swap_count random swaps.
+
+    if len == 0 {
+        return Vec::new();
+    }
+
+    // Not cached: a prefix of a longer input is not mostly descending in the same way.
+    let mut rng: StdRng = rand::SeedableRng::seed_from_u64(random_init_seed());
+    generators::gen_mostly_descending(len, swap_count, &mut rng)
+}
+
 pub fn saw_ascending(len: usize, saw_count: usize) -> Vec<i32> {
     //   .:  .:
     // .:::.:::
