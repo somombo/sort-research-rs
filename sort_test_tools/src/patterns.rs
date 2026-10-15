@@ -176,14 +176,10 @@ pub fn saw_mixed(len: usize, saw_count: usize) -> Vec<i32> {
 
     static CACHE: KeyedVecCache = KeyedVecCache::new();
 
-    CACHE.copy_cached_or_gen(len, saw_count, |len, _seed, saw_count| {
-        let mut vals = random_vec(len);
-        let chunks_size = len / saw_count.max(1);
-        let saw_directions = random_uniform((len / chunks_size) + 1, 0..=1);
+    CACHE.copy_cached_or_gen(len, saw_count, |len, seed, saw_count| {
+        let mut rng: StdRng = rand::SeedableRng::seed_from_u64(seed);
 
-        generators::sort_mixed_saws(&mut vals, chunks_size, &saw_directions);
-
-        vals
+        generators::saw_mixed(len, saw_count, &mut rng)
     })
 }
 
@@ -200,27 +196,10 @@ pub fn saw_mixed_range(len: usize, range: std::ops::Range<usize>) -> Vec<i32> {
 
     static CACHE: KeyedVecCache = KeyedVecCache::new();
 
-    CACHE.copy_cached_or_gen(len, range, |len, _seed, range| {
-        let mut vals = random_vec(len);
+    CACHE.copy_cached_or_gen(len, range, |len, seed, range| {
+        let mut rng: StdRng = rand::SeedableRng::seed_from_u64(seed);
 
-        let max_chunks = len / range.start;
-        let saw_directions = random_uniform(max_chunks + 1, 0..=1);
-        let chunk_sizes = random_uniform(max_chunks + 1, (range.start as i32)..(range.end as i32));
-
-        let mut i = 0;
-        let mut l = 0;
-        while l < len {
-            let chunk_size = chunk_sizes[i] as usize;
-            let chunk_end = std::cmp::min(l + chunk_size, len);
-            let chunk = &mut vals[l..chunk_end];
-
-            generators::sort_chunk(chunk, saw_directions[i]);
-
-            i += 1;
-            l += chunk_size;
-        }
-
-        vals
+        generators::saw_mixed_range(len, range, &mut rng)
     })
 }
 
