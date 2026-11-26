@@ -301,3 +301,138 @@ fn mostly_sorted_patterns_match_upstream_swaps() {
         }
     }
 }
+
+// The pattern functions exported beside `generate`, called directly.
+mod pattern_functions {
+    use super::NoDrawRng;
+    use rand::{rngs::StdRng, RngCore, SeedableRng};
+    use sort_test_tools::{
+        all_equal, ascending, descending, gen_mostly_ascending, gen_mostly_descending, generate,
+        mixture, pipe_organ, random, random_merge, random_sorted, random_sorted_not_last,
+        random_uniform, random_x_percent, random_zipf, saw_ascending, saw_descending, saw_mixed,
+        saw_mixed_range, shuffled_mixture, Values,
+    };
+
+    type Call = fn(usize, &mut StdRng) -> Vec<i32>;
+
+    // Catalog rows rewritten with the exported functions, covering each one the catalog uses.
+    #[rustfmt::skip]
+    const CATALOG_CALLS: &[(&str, Call)] = &[
+        ("random", |len, rng| random(len, rng)),
+        ("random_z1_05", |len, rng| random_zipf(len, 1.05, rng)),
+        ("random_d20", |len, rng| random_uniform(len, 0..20, rng)),
+        ("random__div5", |len, rng| random_uniform(len, 0..=(len as f64 / 5.0).round() as i32, rng)),
+        ("random_p5", |len, rng| random_x_percent(len, 5.0, rng)),
+        ("random_s95", |len, rng| random_sorted(len, 95.0, rng)),
+        ("random_snl_2", |len, rng| random_sorted_not_last(len, 2, rng)),
+        ("random_m30", |len, rng| random_merge(len, 30.0, rng)),
+        ("ascending", |len, _| ascending(len)),
+        ("descending", |len, _| descending(len)),
+        ("all_equal", |len, _| all_equal(len)),
+        ("90_zero_10_random", |len, rng| mixture(len, 90.0, Values::Constant(0), Values::Random, rng)),
+        ("90p_zero_10p_random_dense_neg", |len, rng| {
+            shuffled_mixture(len, 90.0, Values::Constant(0), Values::UniformInclusive(-10..=10), rng)
+        }),
+        ("95p_d4_5p_random", |len, rng| shuffled_mixture(len, 95.0, Values::Uniform(0..4), Values::Random, rng)),
+        ("saw_ascending", |len, rng| saw_ascending(len, rounded_log2(len), rng)),
+        ("saw_descending", |len, rng| saw_descending(len, rounded_log2(len), rng)),
+        ("saws_long", |len, rng| saw_mixed(len, rounded_log2(len), rng)),
+        ("pipe_organ", |len, rng| pipe_organ(len, rng)),
+        ("mostly_ascending", |len, rng| gen_mostly_ascending(len, len.isqrt() + 1, rng)),
+        ("mostly_descending", |len, rng| gen_mostly_descending(len, len.isqrt() + 1, rng)),
+    ];
+
+    fn rounded_log2(len: usize) -> usize {
+        (len as f64).log2().round() as usize
+    }
+
+    // Length 0 included: `generate` returns early there, so the direct calls must not draw.
+    #[test]
+    fn catalog_patterns_are_direct_calls() {
+        for &(pattern, call) in CATALOG_CALLS {
+            for seed in [0, 42, u64::MAX] {
+                for len in [0, 1, 2, 3, 17, 100, 101, 257, 2_048] {
+                    let mut rng = StdRng::seed_from_u64(seed);
+                    let mut replay = rng.clone();
+                    let expected = generate(pattern, len, &mut rng).unwrap();
+                    assert_eq!(call(len, &mut replay), expected, "{pattern}/{len}/{seed}");
+                    assert_eq!(
+                        replay.next_u64(),
+                        rng.next_u64(),
+                        "{pattern}/{len}/{seed} state"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn more_saws_than_values_leaves_the_values_unsorted() {
+        for len in [1, 2, 17] {
+            let raw = random(len, &mut StdRng::seed_from_u64(42));
+            for saw_count in [len + 1, usize::MAX] {
+                let seeded = || StdRng::seed_from_u64(42);
+                assert_eq!(saw_ascending(len, saw_count, &mut seeded()), raw);
+                assert_eq!(saw_descending(len, saw_count, &mut seeded()), raw);
+                assert_eq!(saw_mixed(len, saw_count, &mut seeded()), raw);
+            }
+        }
+    }
+
+    // These use NoDrawRng, so a check that went missing fails on an unexpected draw instead of
+    // in the ways each comment describes.
+
+    // Without the check, ZipfDistribution would sample forever.
+    #[test]
+    #[should_panic(expected = "Zipf exponent NaN is not finite and positive")]
+    fn zipf_rejects_a_nan_exponent() {
+        random_zipf(100, f64::NAN, &mut NoDrawRng);
+    }
+
+    #[test]
+    #[should_panic(expected = "Zipf exponent inf is not finite and positive")]
+    fn zipf_rejects_an_infinite_exponent() {
+        random_zipf(100, f64::INFINITY, &mut NoDrawRng);
+    }
+
+    // Without the check, a zero-length saw would panic only if drawn.
+    #[test]
+    #[should_panic(expected = "saw length range 0..5 must be nonempty, start above 0")]
+    fn saw_mixed_range_rejects_zero_length_saws() {
+        saw_mixed_range(100, 0..5, &mut NoDrawRng);
+    }
+
+    // Without the check, the length would wrap and give an empty vector.
+    #[test]
+    #[should_panic(expected = "length 2147483648 exceeds i32::MAX")]
+    fn ascending_rejects_lengths_above_i32_max() {
+        ascending(i32::MAX as usize + 1);
+    }
+
+    // Without the check, this would work below length 125 and panic from there on.
+    #[test]
+    #[should_panic(expected = "(0.0..=100.0).contains(&sorted_percent)")]
+    fn random_sorted_rejects_a_percentage_above_100() {
+        random_sorted(10, 100.4, &mut NoDrawRng);
+    }
+
+    // Without the check, NaN would count as 0% and give one fully sorted run.
+    #[test]
+    #[should_panic(expected = "(0.0..=100.0).contains(&first_run_percent)")]
+    fn random_merge_rejects_a_nan_percentage() {
+        random_merge(10, f64::NAN, &mut NoDrawRng);
+    }
+
+    // Without the check, a negative percentage would take every value from `second`.
+    #[test]
+    #[should_panic(expected = "(0.0..=100.0).contains(&first_percent)")]
+    fn mixture_rejects_a_negative_percentage() {
+        mixture(
+            10,
+            -5.0,
+            Values::Constant(0),
+            Values::Random,
+            &mut NoDrawRng,
+        );
+    }
+}

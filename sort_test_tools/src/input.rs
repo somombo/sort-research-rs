@@ -189,15 +189,22 @@ impl fmt::Display for GenerateError {
 
 impl std::error::Error for GenerateError {}
 
-enum Values {
+/// A source of values for [`mixture`] and [`shuffled_mixture`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Values {
+    /// The same value repeated, without drawing randomness.
     Constant(i32),
+    /// Values drawn uniformly from the full `i32` range, like [`random`].
     Random,
+    /// Values drawn uniformly from a half-open range, like [`random_uniform`].
     Uniform(Range<i32>),
+    /// Values drawn uniformly from an inclusive range, like [`random_uniform`].
     UniformInclusive(RangeInclusive<i32>),
 }
 
 impl Values {
-    fn generate(self, len: usize, rng: &mut dyn RngCore) -> Vec<i32> {
+    fn generate(self, len: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
         match self {
             Constant(value) => vec![value; len],
             Random => random(len, rng),
@@ -207,41 +214,62 @@ impl Values {
     }
 }
 
-// `first_percent` of `len` comes from `first`, the remainder from `second`.
-fn mixture(
+/// Generate `len` values, `first_percent` percent of them from `first`, with the count rounded
+/// to the nearest integer, followed by the remainder from `second`.
+///
+/// # Panics
+/// Panics if `first_percent` is outside `0.0..=100.0`, or if a uniform range is empty.
+pub fn mixture(
     len: usize,
     first_percent: f64,
     first: Values,
     second: Values,
-    rng: &mut dyn RngCore,
+    rng: &mut (impl Rng + ?Sized),
 ) -> Vec<i32> {
+    assert!((0.0..=100.0).contains(&first_percent));
     let first_len = ((len as f64 / 100.0) * first_percent).round() as usize;
     let mut values = first.generate(first_len, rng);
     values.extend(second.generate(len - first_len, rng));
     values
 }
 
-fn shuffled_mixture(
+/// Generate a [`mixture`] and shuffle it with the same RNG.
+///
+/// # Panics
+/// Panics in the same cases as [`mixture`].
+pub fn shuffled_mixture(
     len: usize,
     first_percent: f64,
     first: Values,
     second: Values,
-    rng: &mut dyn RngCore,
+    rng: &mut (impl Rng + ?Sized),
 ) -> Vec<i32> {
     let mut values = mixture(len, first_percent, first, second, rng);
     values.shuffle(rng);
     values
 }
 
-fn random_x_percent(len: usize, percent: f64, rng: &mut dyn RngCore) -> Vec<i32> {
+/// Generate zeros with `percent` percent of the values drawn from the full `i32` range,
+/// shuffled together.
+///
+/// # Panics
+/// Panics unless `percent` is strictly between 0 and 100.
+pub fn random_x_percent(len: usize, percent: f64, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
     assert!(percent > 0.0 && percent < 100.0);
 
     shuffled_mixture(len, 100.0 - percent, Constant(0), Random, rng)
 }
 
-fn random_sorted_not_last(len: usize, last_n_unsorted: usize, rng: &mut dyn RngCore) -> Vec<i32> {
+/// Generate random values and sort all but the last `last_n_unsorted` of them. Nothing is
+/// sorted when `last_n_unsorted` is at least `len`.
+pub fn random_sorted_not_last(
+    len: usize,
+    last_n_unsorted: usize,
+    rng: &mut (impl Rng + ?Sized),
+) -> Vec<i32> {
     let sorted_percent = (1.0 - (last_n_unsorted as f64 / len as f64)) * 100.0;
-    random_sorted(len, sorted_percent, rng)
+    // Below 0, or NaN for an empty input, when there is nothing to sort.
+    random_sorted(len, sorted_percent.max(0.0), rng)
 }
 
 fn rounded_log2(len: usize) -> usize {

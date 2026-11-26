@@ -4,11 +4,16 @@
 use rand::prelude::*;
 use zipf::ZipfDistribution;
 
-pub(crate) fn random(len: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+/// Generate `len` values drawn uniformly from the full `i32` range.
+pub fn random(len: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
     (0..len).map(|_| rng.gen::<i32>()).collect()
 }
 
-pub(crate) fn random_uniform<R>(len: usize, range: R, rng: &mut (impl Rng + ?Sized)) -> Vec<i32>
+/// Generate `len` values drawn uniformly from `range`, such as `0..20` or `-10..=10`.
+///
+/// # Panics
+/// Panics if `range` is empty.
+pub fn random_uniform<R>(len: usize, range: R, rng: &mut (impl Rng + ?Sized)) -> Vec<i32>
 where
     R: Into<rand::distributions::Uniform<i32>>,
 {
@@ -16,20 +21,45 @@ where
     (0..len).map(|_| dist.sample(rng)).collect()
 }
 
-pub(crate) fn random_zipf(len: usize, exponent: f64, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+/// Generate `len` values in `1..=len` from a Zipf distribution with the given exponent, so
+/// small values are the most frequent.
+///
+/// # Panics
+/// Panics if `exponent` is not finite and positive, or if `len` exceeds `i32::MAX`.
+pub fn random_zipf(len: usize, exponent: f64, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+    // ZipfDistribution accepts NaN and infinite exponents, then never finishes sampling.
+    assert!(
+        exponent > 0.0 && exponent.is_finite(),
+        "Zipf exponent {exponent} is not finite and positive"
+    );
+    assert!(len <= i32::MAX as usize, "length {len} exceeds i32::MAX");
+    if len == 0 {
+        return Vec::new();
+    }
     let dist = ZipfDistribution::new(len, exponent).unwrap();
     (0..len).map(|_| dist.sample(rng) as i32).collect()
 }
 
-pub(crate) fn all_equal(len: usize) -> Vec<i32> {
+/// Generate `len` copies of the value 66.
+pub fn all_equal(len: usize) -> Vec<i32> {
     (0..len).map(|_| 66).collect::<Vec<_>>()
 }
 
-pub(crate) fn ascending(len: usize) -> Vec<i32> {
+/// Generate `0..len` in ascending order.
+///
+/// # Panics
+/// Panics if `len` exceeds `i32::MAX`.
+pub fn ascending(len: usize) -> Vec<i32> {
+    assert!(len <= i32::MAX as usize, "length {len} exceeds i32::MAX");
     (0..len as i32).collect()
 }
 
-pub(crate) fn descending(len: usize) -> Vec<i32> {
+/// Generate `0..len` in descending order.
+///
+/// # Panics
+/// Panics if `len` exceeds `i32::MAX`.
+pub fn descending(len: usize) -> Vec<i32> {
+    assert!(len <= i32::MAX as usize, "length {len} exceeds i32::MAX");
     (0..len as i32).rev().collect()
 }
 
@@ -53,7 +83,7 @@ pub(crate) fn sort_chunk(chunk: &mut [i32], direction: i32) {
 }
 
 pub(crate) fn sort_saws(values: &mut [i32], saw_count: usize, direction: i32) {
-    let chunk_size = values.len() / saw_count.max(1);
+    let chunk_size = (values.len() / saw_count.max(1)).max(1);
     for chunk in values.chunks_mut(chunk_size) {
         sort_chunk(chunk, direction);
     }
@@ -88,59 +118,80 @@ pub(crate) fn sort_pipe_organ(values: &mut [i32]) {
     values[half..].sort_unstable_by_key(|&e| std::cmp::Reverse(e));
 }
 
-pub(crate) fn random_sorted(
-    len: usize,
-    sorted_percent: f64,
-    rng: &mut (impl Rng + ?Sized),
-) -> Vec<i32> {
+/// Generate random values and sort the first `sorted_percent` percent of them, with the count
+/// rounded to the nearest integer.
+///
+/// # Panics
+/// Panics if `sorted_percent` is outside `0.0..=100.0`.
+pub fn random_sorted(len: usize, sorted_percent: f64, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+    assert!((0.0..=100.0).contains(&sorted_percent));
     let mut values = random(len, rng);
     sort_prefix(&mut values, sorted_percent);
     values
 }
 
-pub(crate) fn random_merge(
-    len: usize,
-    first_run_percent: f64,
-    rng: &mut (impl Rng + ?Sized),
-) -> Vec<i32> {
+/// Generate random values as two ascending runs, the first holding `first_run_percent` percent
+/// of them, with the count rounded to the nearest integer.
+///
+/// # Panics
+/// Panics if `first_run_percent` is outside `0.0..=100.0`.
+pub fn random_merge(len: usize, first_run_percent: f64, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+    assert!((0.0..=100.0).contains(&first_run_percent));
     let mut values = random(len, rng);
     sort_runs(&mut values, first_run_percent);
     values
 }
 
-pub(crate) fn saw_ascending(
-    len: usize,
-    saw_count: usize,
-    rng: &mut (impl Rng + ?Sized),
-) -> Vec<i32> {
+/// Generate random values sorted ascending in consecutive saws of `len / saw_count` values.
+///
+/// Each saw holds at least one value, a `saw_count` of 0 counts as 1, and a shorter final saw
+/// takes any remainder. The `saw_ascending` pattern uses `round(log2(len))` saws.
+pub fn saw_ascending(len: usize, saw_count: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
     let mut values = random(len, rng);
     sort_saws(&mut values, saw_count, 0);
     values
 }
 
-pub(crate) fn saw_descending(
-    len: usize,
-    saw_count: usize,
-    rng: &mut (impl Rng + ?Sized),
-) -> Vec<i32> {
+/// Generate random values sorted descending in consecutive saws of `len / saw_count` values.
+///
+/// Saw lengths follow [`saw_ascending`]. The `saw_descending` pattern uses `round(log2(len))`
+/// saws.
+pub fn saw_descending(len: usize, saw_count: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
     let mut values = random(len, rng);
     sort_saws(&mut values, saw_count, 1);
     values
 }
 
-pub(crate) fn saw_mixed(len: usize, saw_count: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+/// Generate random values sorted in consecutive saws of `len / saw_count` values, each ascending
+/// or descending at random.
+///
+/// Saw lengths follow [`saw_ascending`]. The `saws_long` pattern uses `round(log2(len))` saws.
+pub fn saw_mixed(len: usize, saw_count: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+    // Without values there are no saws, so no directions are drawn either.
+    if len == 0 {
+        return Vec::new();
+    }
     let mut values = random(len, rng);
-    let chunk_size = len / saw_count.max(1);
+    let chunk_size = (len / saw_count.max(1)).max(1);
     let directions = random_uniform((len / chunk_size) + 1, 0..=1, rng);
     sort_mixed_saws(&mut values, chunk_size, &directions);
     values
 }
 
-pub(crate) fn saw_mixed_range(
+/// Generate random values sorted in consecutive saws, each with a length drawn from `range` and
+/// ascending or descending at random. The final saw is cut short at `len`.
+///
+/// # Panics
+/// Panics if `range` is empty, starts at 0, or ends above `i32::MAX`.
+pub fn saw_mixed_range(
     len: usize,
     range: std::ops::Range<usize>,
     rng: &mut (impl Rng + ?Sized),
 ) -> Vec<i32> {
+    assert!(
+        0 < range.start && range.start < range.end && range.end <= i32::MAX as usize,
+        "saw length range {range:?} must be nonempty, start above 0, and end at most i32::MAX"
+    );
     let mut values = random(len, rng);
     let directions = rand::distributions::Uniform::from(0..=1);
     let chunk_sizes = rand::distributions::Uniform::from((range.start as i32)..(range.end as i32));
@@ -154,7 +205,9 @@ pub(crate) fn saw_mixed_range(
     values
 }
 
-pub(crate) fn pipe_organ(len: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
+/// Generate random values with the first `len / 2` sorted ascending and the rest sorted
+/// descending.
+pub fn pipe_organ(len: usize, rng: &mut (impl Rng + ?Sized)) -> Vec<i32> {
     let mut values = random(len, rng);
     sort_pipe_organ(&mut values);
     values
@@ -176,7 +229,12 @@ fn swap_random_pairs(values: &mut [i32], swap_count: usize, rng: &mut (impl Rng 
 
 // Ports of gen_mostly_ascending and gen_mostly_descending from the rust-lang/rust slice sort
 // benchmarks (library/alloctests/benches/slice.rs), with the swap count as a parameter.
-pub(crate) fn gen_mostly_ascending(
+/// Generate `0..len` in ascending order, then swap `swap_count` random pairs of positions, each
+/// a `u32` draw modulo `len`. The `mostly_ascending` pattern makes `isqrt(len) + 1` swaps.
+///
+/// # Panics
+/// Panics if `len` exceeds `i32::MAX`.
+pub fn gen_mostly_ascending(
     len: usize,
     swap_count: usize,
     rng: &mut (impl Rng + ?Sized),
@@ -186,7 +244,12 @@ pub(crate) fn gen_mostly_ascending(
     values
 }
 
-pub(crate) fn gen_mostly_descending(
+/// Generate `0..len` in descending order, then swap `swap_count` random pairs of positions, like
+/// [`gen_mostly_ascending`].
+///
+/// # Panics
+/// Panics if `len` exceeds `i32::MAX`.
+pub fn gen_mostly_descending(
     len: usize,
     swap_count: usize,
     rng: &mut (impl Rng + ?Sized),

@@ -52,6 +52,53 @@ architectures. Direct dependencies are pinned to `rand = "=0.8.5"` and
 `zipf = "=7.0.0"`; downstream projects resolve transitive versions in their own
 `Cargo.lock`.
 
+## Pattern functions
+
+Each catalog name calls one of the pattern functions exported at the crate root,
+with fixed parameters. Call them directly to choose other parameters:
+
+```rust
+use rand::{rngs::StdRng, SeedableRng};
+use sort_test_tools::{generate, random_x_percent, saw_mixed, shuffled_mixture, Values};
+
+let mut rng = StdRng::seed_from_u64(42);
+let mut replay = rng.clone();
+assert_eq!(
+    generate("random_p5", 100_000, &mut rng)?,
+    random_x_percent(100_000, 5.0, &mut replay)
+);
+let sparse = random_x_percent(100_000, 0.5, &mut rng);
+let three_saws = saw_mixed(100_000, 3, &mut rng);
+let low_cardinality = shuffled_mixture(
+    100_000,
+    80.0,
+    Values::Constant(0),
+    Values::UniformInclusive(-3..=3),
+    &mut rng,
+);
+```
+
+| Patterns | Function and parameters |
+| --- | --- |
+| `random` | `random` |
+| `random_d<N>`, `random__div<N>` | `random_uniform` over `0..N`, or over `0..=round(len / N)` |
+| `random_d20_start_block` | `random_uniform` over `0..20`, then the first 100 values set to 0 |
+| `random_z<E>` | `random_zipf` with exponent `E`, reading `_` as a decimal point |
+| `random_p<P>` | `random_x_percent` with `P` percent |
+| `random_s<P>`, `random_m<P>` | `random_sorted`, `random_merge` with `P` percent (99 for `random_m95`) |
+| `random_snl_<N>` | `random_sorted_not_last` with `N` unsorted |
+| `90_one_10_zero`, `90_zero_10_one`, `90_zero_10_random` | `mixture` at 90 percent |
+| `90p_*`, `95p_*`, `99p_*` | `shuffled_mixture` at the leading percentage |
+| `saw_ascending`, `saw_descending`, `saws_long` | `saw_ascending`, `saw_descending`, `saw_mixed` with `round(log2(len))` saws |
+| `mostly_ascending`, `mostly_descending` | `gen_mostly_ascending`, `gen_mostly_descending` with `isqrt(len) + 1` swaps |
+| `ascending`, `descending`, `all_equal`, `pipe_organ` | the same name |
+
+`src/input.rs` has the exact call for every name. Like `generate`, the functions
+draw only from the caller's RNG and return an empty vector for length zero
+without drawing. Each function's Rustdoc lists the arguments that make it panic,
+such as a percentage outside `0..=100`, an empty range, or a Zipf exponent that
+is not finite and positive.
+
 ## Using the library
 
 For local development, depend on this directory:
@@ -82,7 +129,8 @@ default features and `default-features = false` support stable Rust.
 
 The existing `patterns` functions retain their process seeds, caches,
 `OVERRIDE_SEED`, and `use_random_seed_each_time` behavior, and serve the
-correctness tests. Use `generate` when the caller should own the RNG. The
+correctness tests. Use `generate` or the pattern functions, which share many
+`patterns` names but take an RNG, when the caller should own the RNG. The
 criterion benchmark is such a caller: it draws every input with `generate` and a
 fresh `StdRng` seeded from `rand::thread_rng()`, so its inputs do not depend on
 the process seed. At startup it checks that repeated inputs differ. It still
@@ -105,4 +153,5 @@ cargo test --manifest-path sort_test_tools/Cargo.toml --locked --no-default-feat
 
 The fixtures retain 171 independently generated upstream hashes on Linux x86_64
 GNU. Behavior tests cover all 85 names, boundary lengths, mixtures, aliases,
-validation, replay, trait-object RNGs, and advancing RNG state.
+validation, replay, trait-object RNGs, and advancing RNG state, and check that
+the pattern functions reproduce the catalog.
